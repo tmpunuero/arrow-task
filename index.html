@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>セット追従課題（ランダムセット / クリック対応）</title>
+  <style>
+    :root{
+      --bg:#0b1020;--text:#e9eefc;--muted:#aeb8da;--line:rgba(255,255,255,.10);
+      --ok:#36d399;--ng:#ff5c7a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;min-height:100svh;color:var(--text);
+      font-family:system-ui,"Noto Sans JP","Yu Gothic",sans-serif;
+      background:
+        radial-gradient(1200px 800px at 30% 10%, rgba(95,140,255,.20), transparent 60%),
+        radial-gradient(900px 650px at 80% 60%, rgba(54,211,153,.10), transparent 60%),
+        var(--bg);
+    }
+    .wrap{width:min(980px,100%); margin:0 auto; padding:10px 14px 14px;}
+
+    .topbar{
+      position:sticky; top:0; z-index:50;
+      padding:8px 0 8px;
+      background: linear-gradient(180deg, rgba(11,16,32,.95), rgba(11,16,32,.72) 75%, rgba(11,16,32,0));
+      backdrop-filter: blur(8px);
+    }
+    .topcard{
+      border-radius:14px;
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      box-shadow:0 14px 40px rgba(0,0,0,.26);
+      padding:10px 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    }
+    .pill{
+      display:flex; align-items:center; gap:8px;
+      padding:7px 9px; border-radius:999px;
+      border:1px solid var(--line); background: rgba(255,255,255,.03);
+      white-space:nowrap;
+    }
+    .big{font-weight:900;font-size:16px}
+
+    .card{
+      border-radius:16px; overflow:hidden;
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      box-shadow:0 16px 46px rgba(0,0,0,.30);
+      margin-top:10px;
+    }
+    .hdr{
+      padding:12px 14px; border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg,rgba(255,255,255,.06),transparent);
+      display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;
+    }
+    .title{font-weight:900}
+    .sub{margin-top:6px;color:var(--muted);font-size:12px;line-height:1.35}
+    .main{padding:12px 14px}
+
+    .btnRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin: 4px 0 10px;}
+    button{
+      appearance:none; border:none; cursor:pointer;
+      padding:10px 12px; border-radius:12px; color:var(--text);
+      background:rgba(255,255,255,.06); border:1px solid var(--line);
+      box-shadow:0 10px 26px rgba(0,0,0,.22); font-weight:800;
+    }
+    button.primary{background:rgba(120,160,255,.18); border-color:rgba(120,160,255,.30)}
+    button.good{background:rgba(54,211,153,.16); border-color:rgba(54,211,153,.25)}
+    button.danger{background:rgba(255,92,122,.14); border-color:rgba(255,92,122,.22)}
+
+    .grid{
+      display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;
+      width:min(520px, 100%);
+      margin: 0 auto;
+      user-select:none;
+    }
+    .pad{
+      aspect-ratio:1/1; border-radius:16px; border:1px solid var(--line);
+      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+      display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;
+      cursor:pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: transform 80ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+    .pad:active{transform: translateY(1px)}
+    .pad.empty{background:transparent;border-color:transparent; cursor:default}
+    .pad .label{position:absolute; bottom:10px; font-size:12px; color:var(--muted);}
+
+    .arrowSvg{width:84px;height:84px;opacity:.9;filter: drop-shadow(0 10px 18px rgba(0,0,0,.45));}
+    .arrowStroke{
+      stroke: rgba(233,238,252,.95);
+      stroke-width: 14;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .light{
+      position:absolute; inset:-3px; border-radius:18px; pointer-events:none;
+      background:
+        radial-gradient(260px 200px at 50% 25%, rgba(120,160,255,.62), transparent 62%),
+        radial-gradient(320px 240px at 50% 80%, rgba(255,255,255,.20), transparent 65%);
+      opacity:0; transition: opacity 90ms ease;
+    }
+    .pad.on .light{opacity:1}
+
+    .pad.okGlow{
+      border-color: rgba(54,211,153,.55);
+      box-shadow:
+        0 18px 44px rgba(54,211,153,.18),
+        0 0 0 2px rgba(54,211,153,.35),
+        inset 0 0 0 1px rgba(255,255,255,.10),
+        inset 0 0 28px rgba(54,211,153,.20);
+      background:
+        radial-gradient(200px 160px at 50% 25%, rgba(54,211,153,.25), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    }
+    .pad.ngGlow{
+      border-color: rgba(255,92,122,.60);
+      box-shadow:
+        0 18px 44px rgba(255,92,122,.20),
+        0 0 0 2px rgba(255,92,122,.40),
+        inset 0 0 0 1px rgba(255,255,255,.10),
+        inset 0 0 28px rgba(255,92,122,.20);
+      background:
+        radial-gradient(200px 160px at 50% 25%, rgba(255,92,122,.25), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    }
+
+    .hint{margin-top:10px;text-align:center;color:var(--muted);font-size:12px;}
+    .k{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);
+      padding:4px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,.25)}
+
+    details{border:1px solid var(--line); border-radius:14px; background:rgba(0,0,0,.18); overflow:hidden}
+    summary{cursor:pointer; padding:10px 12px; font-weight:900; user-select:none}
+    .detailsBody{padding:10px 12px; border-top:1px solid var(--line)}
+    textarea{
+      width:100%; resize: vertical;
+      padding:10px; border-radius:12px; border:1px solid var(--line);
+      background:rgba(0,0,0,.25); color:var(--text);
+      font-size:12px; line-height:1.5;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+
+    .flash{position:fixed; inset:0; pointer-events:none; opacity:0; transition: opacity 120ms ease;}
+    .flash.ok{background: rgba(54,211,153,.12)}
+    .flash.ng{background: rgba(255,92,122,.12)}
+    .flash.on{opacity:1}
+
+    .cutin{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:none;
+      opacity:0;
+      transform: scale(.94);
+      transition: opacity 120ms ease, transform 120ms ease;
+      z-index:999;
+    }
+    .cutin.show{opacity:1; transform: scale(1);}
+    .mark{
+      width:min(260px, 62vw);
+      aspect-ratio:1/1;
+      border-radius:999px;
+      display:flex; align-items:center; justify-content:center;
+      font-weight:1000;
+      font-size:min(160px, 34vw);
+      box-shadow:0 30px 80px rgba(0,0,0,.55);
+      border:2px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(6px);
+    }
+    .mark.ok{
+      color: rgba(54,211,153,1);
+      background: radial-gradient(circle at 30% 25%, rgba(54,211,153,.28), rgba(54,211,153,.10) 55%, rgba(0,0,0,.15));
+    }
+    .mark.ng{
+      color: rgba(255,92,122,1);
+      background: radial-gradient(circle at 30% 25%, rgba(255,92,122,.28), rgba(255,92,122,.10) 55%, rgba(0,0,0,.15));
+    }
+
+    .countdown{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.45);
+      backdrop-filter: blur(6px);
+      z-index:1000;
+      opacity:0; pointer-events:none;
+      transition: opacity 120ms ease;
+    }
+    .countdown.on{opacity:1; pointer-events:auto;}
+    .countdownBox{
+      width:min(360px, 80vw);
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      box-shadow: 0 30px 90px rgba(0,0,0,.6);
+      padding:20px 18px;
+      text-align:center;
+    }
+    .countNum{font-size:min(96px, 20vw);font-weight:1000;line-height:1;margin:6px 0 10px;}
+    .countSub{color:var(--muted); font-size:13px; line-height:1.35}
+
+    /* 結果画面（終了時） */
+    .result{
+      position:fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(8px);
+      z-index:1100;
+      opacity:0; pointer-events:none;
+      transition: opacity 140ms ease;
+    }
+    .result.on{opacity:1; pointer-events:auto;}
+    .resultCard{
+      width:min(760px, 92vw);
+      max-height: 88svh;
+      overflow:auto;
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      box-shadow: 0 30px 110px rgba(0,0,0,.70);
+      padding:16px 16px 14px;
+    }
+    .resultTitle{font-weight:1000; font-size:18px; margin-bottom:8px}
+    .resultGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px}
+    .resultItem{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      border-radius:14px;
+      padding:10px 12px;
+    }
+    .resultLabel{color:var(--muted); font-size:12px}
+    .resultValue{font-weight:1000; font-size:16px; margin-top:4px}
+    .resultActions{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px}
+    .ruleBox{margin-top:12px}
+    .ruleBox .resultLabel{margin-bottom:6px}
+    #ruleGuess{
+      min-height: 120px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .shake{animation: shake .18s linear 0s 1;}
+    @keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-6px)}100%{transform:translateX(0)}}
+  </style>
+</head>
+<body>
+  <div class="flash ok" id="flashOk"></div>
+  <div class="flash ng" id="flashNg"></div>
+
+  <div class="cutin" id="cutin">
+    <div class="mark" id="cutinMark">✓</div>
+  </div>
+
+  <div class="countdown" id="countdown">
+    <div class="countdownBox">
+      <div class="countNum" id="countNum">3</div>
+      <div class="countSub">まもなく開始します</div>
+    </div>
+  </div>
+
+  <!-- 結果画面 -->
+  <div class="result" id="result">
+    <div class="resultCard">
+      <div class="resultTitle">結果（記録）</div>
+
+      <div class="resultGrid">
+        <div class="resultItem">
+          <div class="resultLabel">完了時間</div>
+          <div class="resultValue" id="resTime">—</div>
+        </div>
+        <div class="resultItem">
+          <div class="resultLabel">ベスト</div>
+          <div class="resultValue" id="resBest">—</div>
+        </div>
+        <div class="resultItem">
+          <div class="resultLabel">選択セット</div>
+          <div class="resultValue" id="resSet">—</div>
+        </div>
+        <div class="resultItem">
+          <div class="resultLabel">最終 難問連続正解</div>
+          <div class="resultValue" id="resStreak">—</div>
+        </div>
+      </div>
+
+      <div class="ruleBox">
+        <div class="resultLabel">試行のルールについて（自由記述）</div>
+        <textarea id="ruleGuess" placeholder="例：↑→↓→の繰り返し。一定回数ごとに…、など自由に記述してください。"></textarea>
+        <div class="resultLabel" style="margin-top:8px;">※この記述はログ(JSON)に保存されます。</div>
+      </div>
+
+      <div class="resultActions">
+        <button id="btnSaveRule" class="good">記述を保存</button>
+        <button id="btnCopyResult" class="primary">ログをコピー</button>
+        <button id="btnCloseResult" class="danger">閉じて次へ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="topbar">
+      <div class="topcard">
+        <div class="pill"><span style="color:var(--muted)">経過</span><span class="big"><span id="timeText">0.000</span> <span style="color:var(--muted);font-weight:700">s</span></span></div>
+        <div class="pill"><span style="color:var(--muted)">状態</span><span class="big" id="stateText">待機</span></div>
+        <div class="pill"><span style="color:var(--muted)">難問連続正解</span><span class="big" id="streakText">0</span></div>
+        <div class="pill"><span style="color:var(--muted)">完了時間</span><span class="big" id="finalTimeText">—</span></div>
+        <div class="pill"><span style="color:var(--muted)">ベスト</span><span class="big" id="bestTimeText">—</span></div>
+      </div>
+    </div>
+
+    <section class="card" id="mainCard">
+      <div class="hdr">
+        <div>
+          <div class="title">セット追従課題（結果画面＋自由記述）</div>
+          <div class="sub">
+            入力後は<strong>1秒間</strong>受付停止（同時押し無効）。進捗や残りは表示しません。<br>
+            SPACE/スタート→3秒カウントダウン。正誤は✓/✕とボタン発光で提示。
+          </div>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="btnRow">
+          <button class="primary" id="btnStart">スタート</button>
+          <button id="btnRestart">リスタート</button>
+          <button id="btnCopy">ログをコピー</button>
+        </div>
+
+        <div class="grid">
+          <div class="pad empty"></div>
+
+          <div class="pad" id="padUp" data-key="ArrowUp">
+            <div class="light"></div>
+            <svg class="arrowSvg" viewBox="0 0 100 100" aria-hidden="true">
+              <path class="arrowStroke" d="M50 78 V26 M50 26 L28 46 M50 26 L72 46"></path>
+            </svg>
+            <div class="label">UP</div>
+          </div>
+
+          <div class="pad empty"></div>
+
+          <div class="pad" id="padLeft" data-key="ArrowLeft">
+            <div class="light"></div>
+            <svg class="arrowSvg" viewBox="0 0 100 100" aria-hidden="true">
+              <path class="arrowStroke" d="M78 50 H26 M26 50 L46 28 M26 50 L46 72"></path>
+            </svg>
+            <div class="label">LEFT</div>
+          </div>
+
+          <div class="pad empty"></div>
+
+          <div class="pad" id="padRight" data-key="ArrowRight">
+            <div class="light"></div>
+            <svg class="arrowSvg" viewBox="0 0 100 100" aria-hidden="true">
+              <path class="arrowStroke" d="M22 50 H74 M74 50 L54 28 M74 50 L54 72"></path>
+            </svg>
+            <div class="label">RIGHT</div>
+          </div>
+
+          <div class="pad empty"></div>
+
+          <div class="pad" id="padDown" data-key="ArrowDown">
+            <div class="light"></div>
+            <svg class="arrowSvg" viewBox="0 0 100 100" aria-hidden="true">
+              <path class="arrowStroke" d="M50 22 V74 M50 74 L28 54 M50 74 L72 54"></path>
+            </svg>
+            <div class="label">DOWN</div>
+          </div>
+
+          <div class="pad empty"></div>
+        </div>
+
+        <div class="hint"><span class="k">↑ ↓ ← →</span> / タップで操作　<span class="k">SPACE</span> or スタートで開始</div>
+
+        <details style="margin-top:12px;">
+          <summary>ログ（研究者用）を表示</summary>
+          <div class="detailsBody">
+            <textarea id="logArea" readonly></textarea>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const CONFIG = {
+    cooldownMs: 1000,     // ★ 1秒に変更
+    lightOnMs: 130,
+    countdownSec: 3,
+    judgeFxMs: 900,
+  };
+
+  const pads = {
+    ArrowUp: document.getElementById("padUp"),
+    ArrowDown: document.getElementById("padDown"),
+    ArrowLeft: document.getElementById("padLeft"),
+    ArrowRight: document.getElementById("padRight"),
+  };
+
+  const timeTextEl = document.getElementById("timeText");
+  const stateText = document.getElementById("stateText");
+  const streakTextEl = document.getElementById("streakText");
+  const finalTimeTextEl = document.getElementById("finalTimeText");
+  const bestTimeTextEl = document.getElementById("bestTimeText");
+
+  const logArea = document.getElementById("logArea");
+  const mainCard = document.getElementById("mainCard");
+  const flashOk = document.getElementById("flashOk");
+  const flashNg = document.getElementById("flashNg");
+  const btnStart = document.getElementById("btnStart");
+  const btnRestart = document.getElementById("btnRestart");
+  const btnCopy = document.getElementById("btnCopy");
+
+  const cutin = document.getElementById("cutin");
+  const cutinMark = document.getElementById("cutinMark");
+
+  const countdownEl = document.getElementById("countdown");
+  const countNumEl = document.getElementById("countNum");
+
+  // Result screen
+  const resultEl = document.getElementById("result");
+  const resTime = document.getElementById("resTime");
+  const resBest = document.getElementById("resBest");
+  const resSet  = document.getElementById("resSet");
+  const resStreak = document.getElementById("resStreak");
+  const ruleGuessEl = document.getElementById("ruleGuess");
+  const btnSaveRule = document.getElementById("btnSaveRule");
+  const btnCopyResult = document.getElementById("btnCopyResult");
+  const btnCloseResult = document.getElementById("btnCloseResult");
+
+  // ---- audio
+  let audioCtx = null;
+  function ensureAudio(){ if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  function beep({freq=440, duration=0.08, type="sine", gain=0.07}){
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.value = gain;
+    o.connect(g).connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + duration);
+  }
+  function soundCorrect(){
+    ensureAudio();
+    beep({freq: 660, duration: 0.07, type:"triangle", gain:0.09});
+    setTimeout(() => beep({freq: 880, duration: 0.09, type:"triangle", gain:0.09}), 80);
+  }
+  function soundWrong(){
+    ensureAudio();
+    beep({freq: 160, duration: 0.12, type:"sawtooth", gain:0.085});
+    setTimeout(() => beep({freq: 120, duration: 0.12, type:"sawtooth", gain:0.085}), 130);
+  }
+  function soundInvalid(){ ensureAudio(); beep({freq: 220, duration: 0.06, type:"square", gain:0.06}); }
+  function tickCount(){ ensureAudio(); beep({freq: 520, duration: 0.06, type:"square", gain:0.05}); }
+  function goCount(){ ensureAudio(); beep({freq: 880, duration: 0.10, type:"triangle", gain:0.07}); }
+
+  // ---- UI helpers
+  function flash(el){
+    el.classList.add("on");
+    setTimeout(()=>el.classList.remove("on"), CONFIG.judgeFxMs);
+  }
+  function lightKey(key){
+    const pad = pads[key]; if (!pad) return;
+    pad.classList.add("on");
+    setTimeout(()=>pad.classList.remove("on"), CONFIG.lightOnMs);
+  }
+  function markPad(key, ok){
+    const pad = pads[key]; if (!pad) return;
+    pad.classList.remove("okGlow","ngGlow");
+    pad.classList.add(ok ? "okGlow" : "ngGlow");
+    setTimeout(()=>pad.classList.remove(ok ? "okGlow" : "ngGlow"), CONFIG.judgeFxMs);
+  }
+  function shakeCard(){
+    mainCard.classList.remove("shake");
+    void mainCard.offsetWidth;
+    mainCard.classList.add("shake");
+  }
+  function setStateLabel(t){ stateText.textContent = t; }
+  function arrows(k){ return ({ArrowUp:"↑",ArrowDown:"↓",ArrowLeft:"←",ArrowRight:"→"}[k] ?? k); }
+
+  // ---- cut-in ✓ / ✕
+  let cutinTimer = null;
+  function showCutin(ok){
+    if (cutinTimer) clearTimeout(cutinTimer);
+    cutinMark.textContent = ok ? "✓" : "✕";
+    cutinMark.classList.remove("ok","ng");
+    cutinMark.classList.add(ok ? "ok" : "ng");
+    cutin.classList.add("show");
+    cutinTimer = setTimeout(()=>cutin.classList.remove("show"), CONFIG.judgeFxMs);
+  }
+
+  // ---- keyboard simultaneous press guard
+  const pressed = new Set();
+  let acceptInput = true;
+  let countingDown = false;
+  function lockInput(){ acceptInput=false; setTimeout(()=>{ acceptInput=true; }, CONFIG.cooldownMs); }
+  function isArrowKey(k){ return (k==="ArrowUp"||k==="ArrowDown"||k==="ArrowLeft"||k==="ArrowRight"); }
+  function isSimultaneousPress(currentKey){
+    for (const k of pressed){ if (k !== currentKey && isArrowKey(k)) return true; }
+    return false;
+  }
+
+  // ---- sets (A/B/C)
+  const SET_A1_STR =
+"↑↑↑↑↑↑↑←←←←←←←↓↓↓↓↓↓↓→→→→→→→↑←↑←↑←↑←↑←↑←↑←←↓←↓←↓←↓←↓←↓←↓↓→↓→↓→↓→↓→↓→↓→→↑→↑→↑→↑→↑→↑→↑↑←↓↑←↓↑←↓↑←↓↑←↓↑←↓↑←↓←↓→←↓→←↓→←↓→←↓→←↓→←↓→↓→↑↓→↑↓→↑↓→↑↓→↑↓→↑↓→↑→↑←→↑←→↑←→↑←→↑←→↑←→↑←↑←↓→↑←↓→↑←↓→↑←↓→↑←↓→↑←↓→↑←↓→";
+  const SET_B1_STR =
+"↑←↓→↑←↓→↑←↓→↑←↓→↑←↓→↑←↓→↑←↓→↑←↓↑←↓↑←↓↑←↓↑←↓↑←↓↑←↓←↓→←↓→←↓→←↓→←↓→←↓→←↓→↓→↑↓→↑↓→↑↓→↑↓→↑↓→↑↓→↑→↑←→↑←→↑←→↑←→↑←→↑←→↑←↑←↑←↑←↑←↑←↑←↑←←↓←↓←↓←↓←↓←↓←↓↓→↓→↓→↓→↓→↓→↓→→↑→↑→↑→↑→↑→↑→↑↑↑↑↑↑↑↑←←←←←←←↓↓↓↓↓↓↓→→→→→→→";
+  const SET_C1_STR =
+"↑←↓↑→↑↑←↓↑→↑↑←↓↑→↑↑←↓↑→↑↑←↓↑→↑↑←↓↑→↑↑←↓↑→↑↑←↓↑→↑↑→↑←→↓→→↑←→↓→→↑←→↓→→↑←→↓→→↑←→↓→→↑←→↓→→↑←→↓→→↑←→↓→→↓→↑↓←↓↓→↑↓←↓↓→↑↓←↓↓→↑↓←↓↓→↑↓←↓↓→↑↓←↓↓→↑↓←↓↓→↑↓←↓↓←↓→←↑←←↓→←↑←←↓→←↑←←↓→←↑←←↓→←↑←←↓→←↑←←↓→←↑←←↓→←↑←←↓→←↑←←";
+
+  function strToKeys(str){
+    const map = {"↑":"ArrowUp","↓":"ArrowDown","←":"ArrowLeft","→":"ArrowRight"};
+    const out = [];
+    for (const ch of str){ if (map[ch]) out.push(map[ch]); }
+    return out;
+  }
+  function rotateLeft(key){
+    const m = {ArrowUp:"ArrowLeft", ArrowLeft:"ArrowDown", ArrowDown:"ArrowRight", ArrowRight:"ArrowUp"};
+    return m[key];
+  }
+  function rotateRight(key){
+    const m = {ArrowUp:"ArrowRight", ArrowRight:"ArrowDown", ArrowDown:"ArrowLeft", ArrowLeft:"ArrowUp"};
+    return m[key];
+  }
+  function opposite(key){
+    const m = {ArrowUp:"ArrowDown", ArrowDown:"ArrowUp", ArrowLeft:"ArrowRight", ArrowRight:"ArrowLeft"};
+    return m[key];
+  }
+  function swapLR(key){
+    const m = {ArrowLeft:"ArrowRight", ArrowRight:"ArrowLeft", ArrowUp:"ArrowUp", ArrowDown:"ArrowDown"};
+    return m[key];
+  }
+
+  const A1 = strToKeys(SET_A1_STR);
+  const B1 = strToKeys(SET_B1_STR);
+  const C1 = strToKeys(SET_C1_STR);
+
+  const A2 = A1.map(rotateLeft),  A3 = A1.map(rotateRight),  A4 = A1.map(opposite);
+  const B2 = B1.map(rotateLeft),  B3 = B1.map(rotateRight),  B4 = B1.map(opposite);
+  const C2 = C1.map(rotateLeft),  C3 = C1.map(rotateRight),  C4 = C1.map(opposite);
+
+  const SETS = [
+    {name:"セットA1",  keys:A1},{name:"セットA2",keys:A2},{name:"セットA3",keys:A3},{name:"セットA4",keys:A4},
+    {name:"セットB1",  keys:B1},{name:"セットB2",keys:B2},{name:"セットB3",keys:B3},{name:"セットB4",keys:B4},
+    {name:"セットC1",  keys:C1},{name:"セットC2",keys:C2},{name:"セットC3",keys:C3},{name:"セットC4",keys:C4},
+    {name:"セットA1’", keys:A1.map(swapLR)},{name:"セットA2’",keys:A2.map(swapLR)},{name:"セットA3’",keys:A3.map(swapLR)},{name:"セットA4’",keys:A4.map(swapLR)},
+    {name:"セットB1’", keys:B1.map(swapLR)},{name:"セットB2’",keys:B2.map(swapLR)},{name:"セットB3’",keys:B3.map(swapLR)},{name:"セットB4’",keys:B4.map(swapLR)},
+    {name:"セットC1’", keys:C1.map(swapLR)},{name:"セットC2’",keys:C2.map(swapLR)},{name:"セットC3’",keys:C3.map(swapLR)},{name:"セットC4’",keys:C4.map(swapLR)},
+  ];
+  function pickRandomSet(){ return SETS[Math.floor(Math.random()*SETS.length)]; }
+
+  // ---- records
+  const sessionRecords = { attempts: 0, completions: 0, best_ms: null, history: [] };
+  function updateRecordsUI(){
+    bestTimeTextEl.textContent = (sessionRecords.best_ms == null) ? "—" : (sessionRecords.best_ms/1000).toFixed(3) + " s";
+  }
+
+  // ---- runtime
+  let running=false, finished=false;
+  let selectedSet=null;
+  let pos=0, trial=0;
+  let t0=null, rafId=null;
+  let attemptNo=0;
+  let startedAtISO=null;
+
+  let streak=0;
+  let ruleGuessText=""; // ★ 自由記述（ログに反映）
+  const logs = [];
+  function updateStreakUI(){ streakTextEl.textContent = String(streak); }
+
+  function startTimer(){
+    if (rafId) cancelAnimationFrame(rafId);
+    const tick = () => {
+      if (!running || !t0) return;
+      timeTextEl.textContent = ((performance.now()-t0)/1000).toFixed(3);
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+  }
+  function stopTimer(){ if (rafId) cancelAnimationFrame(rafId); rafId=null; }
+
+  function updateLog(){
+    logArea.value = JSON.stringify({
+      meta: { selected_set: selectedSet ? selectedSet.name : null, set_length: selectedSet ? selectedSet.keys.length : null, cooldownMs: CONFIG.cooldownMs },
+      session: sessionRecords,
+      attempt: { attemptNo, started_at_iso: startedAtISO, streak, rule_guess: ruleGuessText },
+      summary: { trials: trial, duration_ms: finished && t0 ? Math.round(performance.now()-t0) : null },
+      trials: logs
+    }, null, 2);
+  }
+
+  function hardResetRuntimeOnly(){
+    running=false; finished=false;
+    acceptInput=true; pressed.clear();
+    selectedSet=null; pos=0; trial=0; t0=null;
+    logs.length=0;
+    timeTextEl.textContent="0.000";
+    finalTimeTextEl.textContent="—";
+    setStateLabel("待機");
+    stopTimer();
+    streak = 0; updateStreakUI();
+    // 自由記述は試行ごとにリセット（履歴としてはhistoryに残す）
+    ruleGuessText = "";
+    ruleGuessEl.value = "";
+    updateLog();
+  }
+
+  // ---- countdown
+  let countdownTimer = null;
+  async function runCountdown(){
+    countingDown = true;
+    setStateLabel("カウントダウン");
+    countdownEl.classList.add("on");
+
+    for (let n = CONFIG.countdownSec; n >= 1; n--){
+      countNumEl.textContent = String(n);
+      tickCount();
+      await new Promise(r => countdownTimer = setTimeout(r, 1000));
+    }
+    countNumEl.textContent = "GO";
+    goCount();
+    await new Promise(r => countdownTimer = setTimeout(r, 350));
+
+    countdownEl.classList.remove("on");
+    countingDown = false;
+  }
+  function cancelCountdownIfAny(){
+    if (countdownTimer){
+      clearTimeout(countdownTimer);
+      countdownTimer = null;
+    }
+    countdownEl.classList.remove("on");
+    countingDown = false;
+  }
+
+  function recordAbortedAttempt(reason){
+    const endedAtISO = new Date().toISOString();
+    const durationMs = t0 ? Math.round(performance.now() - t0) : null;
+    sessionRecords.history.push({
+      attemptNo,
+      setName: selectedSet ? selectedSet.name : null,
+      finished: false,
+      abort_reason: reason,
+      duration_ms: durationMs,
+      started_at_iso: startedAtISO,
+      ended_at_iso: endedAtISO,
+      streak_end: streak,
+      rule_guess: ruleGuessText
+    });
+    updateRecordsUI();
+    updateLog();
+  }
+
+  function beginAttemptCore(){
+    hardResetRuntimeOnly();
+    selectedSet = pickRandomSet();
+    running=true;
+    finished=false;
+    pos=0; trial=0;
+    attemptNo += 1;
+    sessionRecords.attempts = attemptNo;
+    startedAtISO = new Date().toISOString();
+    setStateLabel("実行中");
+    updateRecordsUI();
+    updateLog();
+  }
+
+  async function beginAttemptWithCountdown(){
+    if (countingDown) return;
+
+    // 結果画面が出ていたら閉じる（次の試行へ）
+    hideResult();
+
+    if (running && !finished){
+      recordAbortedAttempt("restart_during_run");
+    }
+    cancelCountdownIfAny();
+
+    acceptInput = false;
+    await runCountdown();
+    acceptInput = true;
+
+    beginAttemptCore();
+  }
+
+  function showResult({durationMs}){
+    resTime.textContent = (durationMs == null) ? "—" : (durationMs/1000).toFixed(3) + " s";
+    resBest.textContent = (sessionRecords.best_ms == null) ? "—" : (sessionRecords.best_ms/1000).toFixed(3) + " s";
+    resSet.textContent  = selectedSet ? selectedSet.name : "—";
+    resStreak.textContent = String(streak);
+
+    // 自由記述はその試行の内容を表示（編集可）
+    ruleGuessEl.value = ruleGuessText || "";
+
+    resultEl.classList.add("on");
+  }
+  function hideResult(){
+    resultEl.classList.remove("on");
+  }
+
+  function finishAttempt(){
+    running=false; finished=true;
+    setStateLabel("終了");
+    stopTimer();
+
+    const durationMs = t0 ? Math.round(performance.now() - t0) : null;
+    const endedAtISO = new Date().toISOString();
+
+    if (durationMs != null){
+      finalTimeTextEl.textContent = (durationMs/1000).toFixed(3) + " s";
+      sessionRecords.completions += 1;
+      sessionRecords.history.push({
+        attemptNo,
+        setName: selectedSet ? selectedSet.name : null,
+        finished: true,
+        duration_ms: durationMs,
+        started_at_iso: startedAtISO,
+        ended_at_iso: endedAtISO,
+        streak_end: streak,
+        rule_guess: ruleGuessText
+      });
+      if (sessionRecords.best_ms == null || durationMs < sessionRecords.best_ms){
+        sessionRecords.best_ms = durationMs;
+      }
+    }
+    updateRecordsUI();
+    updateLog();
+
+    // ★ 終了時：結果画面を表示
+    showResult({durationMs});
+
+    ensureAudio();
+    beep({freq: 740, duration:0.09, type:"triangle", gain:0.08});
+    setTimeout(()=>beep({freq: 988, duration:0.11, type:"triangle", gain:0.08}), 90);
+  }
+
+  function handleAttempt(key, source){
+    if (!running || finished) return;
+    if (countingDown) return;
+    if (!pads[key]) return;
+    if (!acceptInput) return;
+    // 結果画面中は入力無効
+    if (resultEl.classList.contains("on")) return;
+
+    if (source === "keyboard" && isSimultaneousPress(key)){
+      soundInvalid();
+      flash(flashNg);
+      shakeCard();
+      showCutin(false);
+      markPad(key, false);
+      return;
+    }
+
+    if (!t0){ t0 = performance.now(); startTimer(); }
+
+    trial += 1;
+    lightKey(key);
+
+    const expected = selectedSet.keys[pos];
+    const ok = (key === expected);
+
+    if (ok){
+      pos += 1;
+      streak += 1;
+      updateStreakUI();
+
+      soundCorrect();
+      flash(flashOk);
+      showCutin(true);
+      markPad(key, true);
+
+      logs.push({trial, input:key, inputArrow:arrows(key), ok:true, expectedKey:expected, expectedArrow:arrows(expected), posAfter:pos, source, streak, t_ms:Math.round(performance.now()-t0)});
+      updateLog();
+      lockInput();
+
+      if (pos >= selectedSet.keys.length) finishAttempt();
+      return;
+    }
+
+    // ミス：最初から＋streak=0
+    streak = 0; updateStreakUI();
+
+    soundWrong();
+    flash(flashNg);
+    showCutin(false);
+    markPad(key, false);
+    shakeCard();
+
+    logs.push({trial, input:key, inputArrow:arrows(key), ok:false, expectedKey:expected, expectedArrow:arrows(expected), posAfter:0, source, streak, t_ms:Math.round(performance.now()-t0)});
+    pos = 0;
+    updateLog();
+    lockInput();
+  }
+
+  // ---- controls
+  function requestStart(){
+    ensureAudio();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    beginAttemptWithCountdown();
+  }
+
+  // keyboard
+  window.addEventListener("keydown", (e) => {
+    // 結果画面が出ているときは SPACE/Enter で閉じる（任意）
+    if (resultEl.classList.contains("on") && (e.code==="Space" || e.key===" " || e.key==="Enter")){
+      e.preventDefault();
+      hideResult();
+      return;
+    }
+
+    if (e.key === " " || e.code === "Space"){
+      e.preventDefault();
+      requestStart();
+      return;
+    }
+    if (!isArrowKey(e.key)) return;
+    e.preventDefault();
+    if (!e.repeat) pressed.add(e.key);
+    handleAttempt(e.key, "keyboard");
+  }, {passive:false});
+
+  window.addEventListener("keyup", (e) => {
+    if (!isArrowKey(e.key)) return;
+    e.preventDefault();
+    pressed.delete(e.key);
+  }, {passive:false});
+
+  // tap/click pads
+  for (const key of Object.keys(pads)){
+    const el = pads[key];
+    el.addEventListener("pointerdown", (e) => {
+      if (!el.dataset.key) return;
+      e.preventDefault();
+      handleAttempt(el.dataset.key, "tap");
+    });
+  }
+
+  // buttons
+  btnStart.addEventListener("click", () => requestStart());
+  btnRestart.addEventListener("click", () => requestStart());
+
+  btnCopy.addEventListener("click", async () => {
+    try{
+      await navigator.clipboard.writeText(logArea.value);
+      ensureAudio();
+      if (audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
+      beep({freq: 1046, duration:0.07, type:"triangle", gain:0.07});
+    }catch{
+      alert("コピーに失敗しました。");
+    }
+  });
+
+  // ---- Result screen actions
+  function saveRuleGuess(){
+    ruleGuessText = (ruleGuessEl.value || "").trim();
+    updateLog();
+
+    // history内の「最新の完了試行」にも反映（あとから書き換えてもログが追従するように）
+    for (let i = sessionRecords.history.length - 1; i >= 0; i--){
+      const h = sessionRecords.history[i];
+      if (h && h.attemptNo === attemptNo){
+        h.rule_guess = ruleGuessText;
+        break;
+      }
+    }
+    updateLog();
+
+    ensureAudio();
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    beep({freq: 990, duration:0.06, type:"triangle", gain:0.07});
+  }
+
+  btnSaveRule.addEventListener("click", saveRuleGuess);
+
+  // 入力中も随時反映（自動保存）
+  ruleGuessEl.addEventListener("input", () => {
+    ruleGuessText = (ruleGuessEl.value || "").trim();
+    updateLog();
+  });
+
+  btnCopyResult.addEventListener("click", async () => {
+    // コピー前に確実に保存
+    saveRuleGuess();
+    try{
+      await navigator.clipboard.writeText(logArea.value);
+      ensureAudio();
+      if (audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
+      beep({freq: 1046, duration:0.07, type:"triangle", gain:0.07});
+    }catch{
+      alert("コピーに失敗しました。");
+    }
+  });
+
+  btnCloseResult.addEventListener("click", () => {
+    saveRuleGuess();
+    hideResult();
+  });
+
+  // init
+  hardResetRuntimeOnly();
+  updateRecordsUI();
+})();
+</script>
+</body>
+</html>
